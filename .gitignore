@@ -10,19 +10,23 @@ __pycache__/
 *.pyo
 *.pyd
 *.so
+htmlcov/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
-htmlcov/
+**/.tmp/
+**/.tmp_pytest/
+**/pytest-cache-files-*/
 
 # Virtual environments
 .venv/
 venv/
 ENV/
 
-# Logs
 *.log
+**/logs/
+**/*.log
 
 # Env files
 .env
@@ -98,3 +102,19 @@ node_modules/
 backend/data/
 random/
 *.db
+backend/uploads/
+backend/storage/
+app-releases/
+*.bak
+*.tmp
+*.temp
+**/.ipynb_checkpoints/
+**/.DS_Store
+**/Thumbs.db
+**/*.swp
+**/*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

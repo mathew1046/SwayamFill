@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -15,6 +15,7 @@ class FormField(BaseModel):
     bbox: List[int] = Field(..., min_length=4, max_length=4, description="[x1,y1,x2,y2]")
     input_mode: str = Field("voice", description="voice or placeholder")
     write_language: str = Field("ml", description="en, ml, or numeric")
+    hint: Optional[str] = Field(None, description="Optional hint shown to the user when collecting the field")
 
 
 class OcrItem(BaseModel):
@@ -88,4 +89,48 @@ class SessionSummary(BaseModel):
     filled_count: int = Field(..., description="Number of filled fields")
     skipped_count: int = Field(..., description="Number of skipped fields")
     details: List[FieldSummary] = Field(..., description="Detailed list of fields")
+
+
+class GenerateFormImageRequest(BaseModel):
+    session_id: str = Field(..., description="Session identifier returned from analyze-form")
+    field_values: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional field_id -> value map. Overrides any values already collected in the session.",
+    )
+    output_format: Literal["png", "jpeg", "webp"] = Field("png", description="Generated image format")
+    quality: Literal["low", "medium", "high"] = Field("medium", description="Image generation quality")
+    background: Literal["auto", "opaque", "transparent"] = Field(
+        "opaque",
+        description="Background handling for the generated image",
+    )
+
+
+class FilledFieldValue(BaseModel):
+    field_id: str = Field(..., description="Field identifier")
+    label: str = Field(..., description="Human-readable field label")
+    value: str = Field(..., description="Value used when generating the form image")
+
+
+class GenerateFormImageResponse(BaseModel):
+    session_id: str = Field(..., description="Session identifier")
+    model: str = Field(..., description="Image model used for generation")
+    output_format: Literal["png", "jpeg", "webp"] = Field(..., description="Generated image format")
+    mime_type: str = Field(..., description="MIME type for the returned base64 image")
+    image_base64: str = Field(..., description="Base64-encoded generated image bytes")
+    fields_used: List[FilledFieldValue] = Field(..., description="Field values applied to the form image")
+    revised_prompt: Optional[str] = Field(None, description="Model-revised prompt when provided by the API")
+    generated_image_url: str = Field(..., description="Backend URL for retrieving the generated image later")
+
+
+class SaveFieldValuesRequest(BaseModel):
+    field_values: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Map of field_id to the value entered by the user",
+    )
+
+
+class SaveFieldValuesResponse(BaseModel):
+    session_id: str = Field(..., description="Session identifier")
+    saved_count: int = Field(..., description="Number of non-empty field values saved")
+    field_values: Dict[str, str] = Field(..., description="Current saved values for the session")
 

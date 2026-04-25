@@ -1,4 +1,4 @@
-def test_get_session_returns_full_response(client, sample_image_bytes, mock_remote_ocr):
+def test_get_session_returns_full_response(client, sample_image_bytes):
     """Test that we can retrieve the full analyze-form response by session_id."""
     # Create a session first
     resp = client.post(
@@ -21,7 +21,7 @@ def test_get_session_returns_full_response(client, sample_image_bytes, mock_remo
     assert len(body["fields"]) >= 1
 
 
-def test_get_session_image_returns_image(client, sample_image_bytes, mock_remote_ocr):
+def test_get_session_image_returns_image(client, sample_image_bytes):
     """Test that we can retrieve the original uploaded image by session_id."""
     # Create a session first
     resp = client.post(
@@ -48,3 +48,21 @@ def test_get_session_image_not_found(client):
     """Test that retrieving image for non-existent session returns 404."""
     resp = client.get("/session/does-not-exist/image")
     assert resp.status_code == 404
+
+
+def test_save_field_values(client, sample_image_bytes):
+    resp = client.post(
+        "/analyze-form",
+        files={"file": ("form.png", sample_image_bytes, "image/png")},
+    )
+    assert resp.status_code == 200
+    session_id = resp.json()["session_id"]
+
+    save_resp = client.put(
+        f"/session/{session_id}/field-values",
+        json={"field_values": {"name_0": "Jane Doe"}},
+    )
+    assert save_resp.status_code == 200
+    body = save_resp.json()
+    assert body["saved_count"] == 1
+    assert body["field_values"]["name_0"] == "Jane Doe"

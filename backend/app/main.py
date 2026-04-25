@@ -3,9 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import logging
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from app.routes.health import router as health_router
 from app.routes.analyze import router as analyze_router
 from app.routes.chat import router as chat_router
+from app.routes.image_generation import router as image_generation_router
 from app.routes.stt import router as stt_router
 from app.routes.tts import router as tts_router
 
@@ -13,6 +16,9 @@ from app.routes.tts import router as tts_router
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 def create_app() -> FastAPI:
@@ -26,6 +32,7 @@ def create_app() -> FastAPI:
             "http://localhost:8000",  # backend itself (dev)
             os.getenv("FRONTEND_URL", "https://swayamfill.web.app"),  # production frontend
         ],
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -37,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(health_router)
     app.include_router(analyze_router)
+    app.include_router(image_generation_router)
     app.include_router(stt_router)
     app.include_router(tts_router)
 

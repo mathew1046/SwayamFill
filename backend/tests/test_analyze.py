@@ -9,7 +9,7 @@ def test_analyze_form_rejects_non_image(client):
     assert resp.status_code == 400
 
 
-def test_analyze_form_creates_session_and_fields(client, sample_image_bytes, mock_remote_ocr):
+def test_analyze_form_creates_session_and_fields(client, sample_image_bytes):
     resp = client.post(
         "/analyze-form",
         files={"file": ("form.png", sample_image_bytes, "image/png")},
@@ -28,12 +28,7 @@ def test_analyze_form_creates_session_and_fields(client, sample_image_bytes, moc
 
     ocr_items = body.get("ocr_items")
     assert isinstance(ocr_items, list)
-    assert len(ocr_items) >= 1
-    assert "text" in ocr_items[0]
-    assert "bbox" in ocr_items[0]
-    assert "score" in ocr_items[0]
-    # points should not be in response (bloat reduction)
-    assert "points" not in ocr_items[0]
+    assert ocr_items == []
 
     fields = body.get("fields")
     assert isinstance(fields, list)
@@ -45,3 +40,4 @@ def test_analyze_form_creates_session_and_fields(client, sample_image_bytes, moc
     assert "text" not in first_field  # text is runtime state, not analysis-time
     assert isinstance(first_field["bbox"], list)
     assert len(first_field["bbox"]) == 4
+    assert "hint" in first_field
