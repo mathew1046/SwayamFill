@@ -40,6 +40,8 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
   final _apiService = const FormApiService();
 
   final Map<String, String> _fieldValues = {};
+  final Map<String, SavedFieldMatch> _matchedValues = {};
+  final Set<String> _editingMatchedFields = {};
 
   int _currentIndex = 0;
   bool _isRecording = false;
@@ -48,6 +50,9 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
 
   FormFieldModel get _currentField => widget.fields[_currentIndex];
   bool get _isLastField => _currentIndex == widget.fields.length - 1;
+  bool get _hasPendingMatchedValue =>
+      _matchedValues.containsKey(_currentField.fieldId) &&
+      !_editingMatchedFields.contains(_currentField.fieldId);
 
   @override
   void initState() {
@@ -98,9 +103,10 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
 
   Future<void> _preloadSavedValues() async {
     for (final field in widget.fields) {
-      final saved = await _profileService.getValueForLabel(field.label);
-      if (saved != null && saved.trim().isNotEmpty) {
-        _fieldValues[field.fieldId] = saved.trim();
+      final match = await _profileService.getMatchForLabel(field.label);
+      if (match != null && match.value.trim().isNotEmpty) {
+        _fieldValues[field.fieldId] = match.value.trim();
+        _matchedValues[field.fieldId] = match;
       }
     }
   }
@@ -111,7 +117,11 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
 
   Future<void> _speakCurrentPrompt() async {
     final hintText = _currentField.hint == null ? '' : ' Hint: ${_currentField.hint}.';
-    final prompt = 'Please enter ${_currentField.label}.$hintText You can type or use the microphone.';
+    final match = _matchedValues[_currentField.fieldId];
+    final prompt = _hasPendingMatchedValue && match != null
+        ? 'I found a saved value for ${_currentField.label}: ${match.value}. '
+            'If this looks correct, tap Looks Correct. Otherwise tap Correct It.'
+        : 'Please enter ${_currentField.label}.$hintText You can type or use the microphone.';
     await _tts.speak(
       prompt,
       backendUrl: widget.backendUrl,
@@ -173,6 +183,26 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
     await _speakCurrentPrompt();
   }
 
+  Future<void> _confirmMatchedValue() async {
+    if (_isBusy || !_hasPendingMatchedValue) return;
+    await _goToNextField();
+  }
+
+  Future<void> _editMatchedValue() async {
+    if (_isBusy || !_hasPendingMatchedValue) return;
+
+    setState(() {
+      _editingMatchedFields.add(_currentField.fieldId);
+    });
+
+    await _tts.speak(
+      'Please correct ${_currentField.label}. You can type the new value or use the microphone.',
+      backendUrl: widget.backendUrl,
+      sessionId: widget.sessionId,
+      language: widget.selectedLanguage,
+    );
+  }
+
   void _goToPreviousField() {
     if (_currentIndex == 0) return;
     setState(() {
@@ -217,6 +247,20 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
+  }
+
+  String _buildHelperText() {
+    final match = _matchedValues[_currentField.fieldId];
+    if (_hasPendingMatchedValue && match != null) {
+      final source = match.sourceLabel.trim().isEmpty ? '' : ' from "${match.sourceLabel}"';
+      return 'Matched a previously saved value$source using ${match.matchedBy} label matching.';
+    }
+
+    if (_editingMatchedFields.contains(_currentField.fieldId)) {
+      return 'Update the saved value if this field has changed for the new form.';
+    }
+
+    return 'Saved values from previous forms are reused automatically when the label matches.';
   }
 
   @override
@@ -270,19 +314,22 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
                                   const SizedBox(height: 16),
                                   TextField(
                                     controller: _textController,
+                                    readOnly: _hasPendingMatchedValue,
                                     minLines: 1,
                                     maxLines: 3,
                                     decoration: InputDecoration(
-                                      hintText: 'Type the value here',
+                                      hintText: _hasPendingMatchedValue
+                                          ? 'Previously saved value matched for this field'
+                                          : 'Type the value here',
                                       suffixIcon: IconButton(
-                                        onPressed: _toggleRecording,
+                                        onPressed: _hasPendingMatchedValue ? null : _toggleRecording,
                                         icon: Icon(_isRecording ? Icons.stop_circle : Icons.mic),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
-                                    'Saved values from previous forms are pre-filled when available.',
+                                    _buildHelperText(),
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurface.withOpacity(0.65),
                                     ),
@@ -296,23 +343,43 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _currentIndex == 0 || _isBusy ? null : _goToPreviousField,
-                              child: const Text('Previous'),
+                      child: _hasPendingMatchedValue
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isBusy ? null : _editMatchedValue,
+                                    icon: const Icon(Icons.edit_outlined),
+                                    label: const Text('Correct it'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _isBusy ? null : _confirmMatchedValue,
+                                    icon: const Icon(Icons.check_circle),
+                                    label: Text(_isLastField ? 'Use saved value' : 'Looks correct'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _currentIndex == 0 || _isBusy ? null : _goToPreviousField,
+                                    child: const Text('Previous'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: _isBusy ? null : _goToNextField,
+                                    child: Text(_isLastField ? 'Generate Form' : 'Next Field'),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: _isBusy ? null : _goToNextField,
-                              child: Text(_isLastField ? 'Generate Form' : 'Next Field'),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 ),
