@@ -10,6 +10,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["tts"])
 
 
+_BULBUL_V3_SPEAKERS = {
+    "aditya", "ritu", "ashutosh", "priya", "neha", "rahul", "pooja", "rohan", "simran", "kavya",
+    "amit", "dev", "ishita", "shreya", "ratan", "varun", "manan", "sumit", "roopa", "kabir",
+    "aayan", "shubh", "advait", "anand", "tanya", "tarun", "sunny", "mani", "gokul", "vijay",
+    "shruti", "suhani", "mohit", "kavitha", "rehan", "soham", "rupali", "niharika",
+}
+
+
 def _lang_to_code(language: str) -> str:
     """Map language code to Sarvam locale code for all 11 supported languages."""
     lang = (language or "en").lower().replace("_", "-")
@@ -31,13 +39,24 @@ def _lang_to_code(language: str) -> str:
 
 
 def _voice_to_speaker(voice: str) -> str:
-    # Map app-level voice to Sarvam speaker. 'default' → a neutral female voice.
+    # Map app-level voice to Sarvam Bulbul v3 speakers.
     v = (voice or "default").lower()
-    return {
-        "default": "anushka",
-        "female": "anushka",
-        "male": "karun",
-    }.get(v, "anushka")
+
+    # Friendly aliases used by frontend.
+    alias = {
+        "default": "priya",
+        "female": "priya",
+        "male": "rahul",
+    }.get(v)
+    if alias:
+        return alias
+
+    # If caller already passes a valid Sarvam speaker, keep it.
+    if v in _BULBUL_V3_SPEAKERS:
+        return v
+
+    # Safe default for unknown inputs.
+    return "priya"
 
 
 @router.post("/tts")
@@ -55,17 +74,7 @@ async def tts(
     text = payload.get("text")
     language = payload.get("language", "en")
     session_id = payload.get("session_id")
-    
-    # If session_id is provided, try to get language from session
-    if session_id:
-        state = session_service.get_session(session_id)
-        if state and state.selected_language:
-            language = state.selected_language
-        elif state and state.detected_language:
-            language = state.detected_language
-            
     voice = payload.get("voice", "default")
-    session_id = payload.get("session_id")
     
     logger.info(f"TTS request received: text='{text}', language={language}, voice={voice}, session_id={session_id}")
     
@@ -82,20 +91,39 @@ async def tts(
     
     resolved_language = language
     if session_id:
-        # Prefer session-level detected language if available
-        session_lang = session_service.get_session(session_id).detected_language if session_service.get_session(session_id) else None
+        state = session_service.get_session(session_id)
+        selected_lang = state.selected_language if state else None
+        detected_lang = state.detected_language if state else None
         db_lang = store.get_language(session_id)
-        resolved_language = session_lang or db_lang or language
+
+        # Priority: user-selected language > detected session language > DB language > request language
+        resolved_language = selected_lang or detected_lang or db_lang or language
 
     language_code = _lang_to_code(resolved_language)
     speaker = _voice_to_speaker(voice)
     logger.info(f"TTS: Using language_code={language_code}, speaker={speaker}")
+
+    text_to_speak = text
+    normalized_lang = (resolved_language or "en").lower().replace("_", "-")
+    if "-" in normalized_lang:
+        normalized_lang = normalized_lang.split("-")[0]
+
+    if normalized_lang != "en":
+        try:
+            text_to_speak = await sarvam.translate_text(text, target_language=normalized_lang)
+        except Exception as e:
+            logger.error(f"TTS: Translation before synthesis failed for language={normalized_lang}: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"TTS translation failed for selected language '{normalized_lang}'",
+            )
     
     try:
         audio_bytes = await sarvam.text_to_speech(
-            text=text, 
+            text=text_to_speak,
             language_code=language_code, 
-            speaker=speaker
+            speaker=speaker,
+            model="bulbul:v3",
         )
         logger.info(f"TTS: Audio generated, size={len(audio_bytes)} bytes")
     except Exception as e:

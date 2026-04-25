@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:universal_html/html.dart' as html;
+import 'package:web/web.dart' as web;
 
 import 'language_selection_screen.dart';
 
@@ -111,10 +111,11 @@ class GeneratedFormScreen extends StatelessWidget {
       return;
     }
 
-    final anchor = html.AnchorElement(href: _dataUrl)
+    final anchor = web.HTMLAnchorElement()
+      ..href = _dataUrl
       ..download = filename
       ..style.display = 'none';
-    html.document.body?.append(anchor);
+    web.document.body?.append(anchor);
     anchor.click();
     anchor.remove();
   }
@@ -124,6 +125,6 @@ class GeneratedFormScreen extends StatelessWidget {
       return;
     }
 
-    html.window.open(_dataUrl, '_blank');
+    web.window.open(_dataUrl, '_blank');
   }
 }

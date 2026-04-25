@@ -182,54 +182,52 @@ Keep it brief and natural in {target_language}. keep the language of {extracted_
         """
         import asyncio
 
-        if self.stub or target_language == "en":
+        if self.stub:
             return text
 
-        # Map codes to full names for better LLM performance
-        lang_map = {
-            "hi": "Hindi",
-            "bn": "Bengali",
-            "kn": "Kannada",
-            "ml": "Malayalam",
-            "mr": "Marathi",
-            "od": "Odia",
-            "pa": "Punjabi",
-            "ta": "Tamil",
-            "te": "Telugu",
-            "gu": "Gujarati",
-            "en": "English"
-        }
-        
-        # Handle both "ml" and "ml-IN" formats
-        code = target_language.lower().split("-")[0]
-        full_lang = lang_map.get(code, target_language)
+        # Accept both short form ('ml') and BCP-47 ('ml-IN').
+        normalized = (target_language or "en").lower().replace("_", "-")
+        if normalized == "en" or normalized == "en-in":
+            return text
 
-        prompt = f"""Translate the following assistant message into {full_lang}.
-Preserve meaning and keep it concise.
+        code = normalized.split("-")[0]
+        target_bcp47 = {
+            "hi": "hi-IN",
+            "bn": "bn-IN",
+            "kn": "kn-IN",
+            "ml": "ml-IN",
+            "mr": "mr-IN",
+            "od": "od-IN",
+            "pa": "pa-IN",
+            "ta": "ta-IN",
+            "te": "te-IN",
+            "gu": "gu-IN",
+            "en": "en-IN",
+        }.get(code, "en-IN")
 
-Message:
-{text}
-"""
-
-        messages = [
-            {
-                "role": "system",
-                "content": f"You are a precise translator. Translate the text to {full_lang}. Return only the translated text without quotes. Keep the original format of the text, if the text has {{}} do not remove them."
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ]
+        if target_bcp47 == "en-IN":
+            return text
 
         try:
             response = await asyncio.to_thread(
-                self.client.chat.completions,
-                messages=messages,
-                temperature=0.2,
+                self.client.text.translate,
+                input=text,
+                source_language_code="auto",
+                target_language_code=target_bcp47,
             )
-            translated = response.choices[0].message.content.strip()
-            return translated
+
+            # SDK response may be object-like or dict-like.
+            translated = None
+            if hasattr(response, "translated_text"):
+                translated = getattr(response, "translated_text")
+            elif isinstance(response, dict):
+                translated = response.get("translated_text") or response.get("translation")
+
+            translated_text = str(translated or "").strip()
+            if not translated_text:
+                raise RuntimeError("Empty translation received from Sarvam")
+
+            return translated_text
         except Exception as e:
             raise RuntimeError(f"Sarvam translation failed: {e}") from e
     
@@ -237,7 +235,8 @@ Message:
         self, 
         text: str, 
         language_code: str = "en-IN",
-        speaker: str = "anushka"
+        speaker: str = "anushka",
+        model: str = "bulbul:v3",
     ) -> bytes:
         """
         Convert text to speech using Sarvam Bulbul
@@ -261,7 +260,8 @@ Message:
                 text=text,
                 target_language_code=language_code,
                 speaker=speaker,
-                enable_preprocessing=True
+                model=model,
+                enable_preprocessing=(model == "bulbul:v2"),
             )
             # Assuming response.audios is a list of base64 strings
             audio_base64 = response.audios[0]
