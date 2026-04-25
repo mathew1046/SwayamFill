@@ -1,22 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from fastapi import Body
 from fastapi.responses import Response
-from app.services.sarvam_service import SarvamService
+from app.services.sarvam_service import SarvamService, normalize_tts_speaker
 from app.services.storage_service import store
 from app.services.session_service import session_service
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["tts"])
-
-
-_BULBUL_V3_SPEAKERS = {
-    "aditya", "ritu", "ashutosh", "priya", "neha", "rahul", "pooja", "rohan", "simran", "kavya",
-    "amit", "dev", "ishita", "shreya", "ratan", "varun", "manan", "sumit", "roopa", "kabir",
-    "aayan", "shubh", "advait", "anand", "tanya", "tarun", "sunny", "mani", "gokul", "vijay",
-    "shruti", "suhani", "mohit", "kavitha", "rehan", "soham", "rupali", "niharika",
-}
-
 
 def _lang_to_code(language: str) -> str:
     """Map language code to Sarvam locale code for all 11 supported languages."""
@@ -39,24 +30,7 @@ def _lang_to_code(language: str) -> str:
 
 
 def _voice_to_speaker(voice: str) -> str:
-    # Map app-level voice to Sarvam Bulbul v3 speakers.
-    v = (voice or "default").lower()
-
-    # Friendly aliases used by frontend.
-    alias = {
-        "default": "priya",
-        "female": "priya",
-        "male": "rahul",
-    }.get(v)
-    if alias:
-        return alias
-
-    # If caller already passes a valid Sarvam speaker, keep it.
-    if v in _BULBUL_V3_SPEAKERS:
-        return v
-
-    # Safe default for unknown inputs.
-    return "priya"
+    return normalize_tts_speaker(voice, model="bulbul:v3")
 
 
 @router.post("/tts")

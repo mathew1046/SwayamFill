@@ -8,6 +8,35 @@ import base64
 from sarvamai import SarvamAI
 
 
+_BULBUL_V3_SPEAKERS = {
+    "aditya", "ritu", "ashutosh", "priya", "neha", "rahul", "pooja", "rohan", "simran", "kavya",
+    "amit", "dev", "ishita", "shreya", "ratan", "varun", "manan", "sumit", "roopa", "kabir",
+    "aayan", "shubh", "advait", "anand", "tanya", "tarun", "sunny", "mani", "gokul", "vijay",
+    "shruti", "suhani", "mohit", "kavitha", "rehan", "soham", "rupali", "niharika",
+}
+
+
+def normalize_tts_speaker(speaker: str | None, model: str = "bulbul:v3") -> str:
+    requested = (speaker or "").strip().lower()
+
+    if model == "bulbul:v3":
+        alias = {
+            "": "priya",
+            "default": "priya",
+            "female": "priya",
+            "male": "rahul",
+        }.get(requested)
+        if alias:
+            return alias
+
+        if requested in _BULBUL_V3_SPEAKERS:
+            return requested
+
+        return "priya"
+
+    return requested or "anushka"
+
+
 class SarvamService:
     def __init__(self):
         self.api_key = os.getenv("SARVAM_API_KEY")
@@ -235,7 +264,7 @@ Keep it brief and natural in {target_language}. keep the language of {extracted_
         self, 
         text: str, 
         language_code: str = "en-IN",
-        speaker: str = "anushka",
+        speaker: str = "priya",
         model: str = "bulbul:v3",
     ) -> bytes:
         """
@@ -255,11 +284,12 @@ Keep it brief and natural in {target_language}. keep the language of {extracted_
             return b""
 
         try:
+            normalized_speaker = normalize_tts_speaker(speaker, model=model)
             response = await asyncio.to_thread(
                 self.client.text_to_speech.convert,
                 text=text,
                 target_language_code=language_code,
-                speaker=speaker,
+                speaker=normalized_speaker,
                 model=model,
                 enable_preprocessing=(model == "bulbul:v2"),
             )
