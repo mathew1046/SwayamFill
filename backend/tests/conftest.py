@@ -54,6 +54,7 @@ def api_keys(monkeypatch):
     """Provide placeholder API keys for tests."""
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
     return True
 
 

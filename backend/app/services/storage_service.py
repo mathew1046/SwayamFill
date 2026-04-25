@@ -37,6 +37,7 @@ def _init_db(conn: sqlite3.Connection) -> None:
             created_at REAL NOT NULL,
             filename TEXT NOT NULL,
             image_data BLOB,
+            image_mime_type TEXT,
             generated_image_data BLOB,
             generated_image_mime_type TEXT,
             ocr_items_json TEXT NOT NULL,
@@ -57,6 +58,13 @@ def _init_db(conn: sqlite3.Connection) -> None:
     except sqlite3.OperationalError:
         # Column doesn't exist, add it
         conn.execute("ALTER TABLE sessions ADD COLUMN image_data BLOB")
+        conn.commit()
+
+    # Migration: Add image_mime_type column if missing
+    try:
+        conn.execute("SELECT image_mime_type FROM sessions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE sessions ADD COLUMN image_mime_type TEXT")
         conn.commit()
 
     # Migration: Add phase column if missing
@@ -121,18 +129,20 @@ class SQLiteSessionStore:
         image_width: int = 0,
         image_height: int = 0,
         image_data: Optional[bytes] = None,
+        image_mime_type: Optional[str] = None,
     ) -> str:
         session_id = str(uuid4())
         created_at = time.time()
 
         def _op(conn: sqlite3.Connection) -> str:
             conn.execute(
-                "INSERT INTO sessions(session_id, created_at, filename, image_data, ocr_items_json, fields_json, current_field_index, filled_fields_json, language, image_width, image_height, phase) VALUES (?, ?, ?, ?, ?, ?, 0, '{}', 'en', ?, ?, 'COLLECT_DATA')",
+                "INSERT INTO sessions(session_id, created_at, filename, image_data, image_mime_type, ocr_items_json, fields_json, current_field_index, filled_fields_json, language, image_width, image_height, phase) VALUES (?, ?, ?, ?, ?, ?, ?, 0, '{}', 'en', ?, ?, 'COLLECT_DATA')",
                 (
                     session_id,
                     created_at,
                     filename,
                     image_data,
+                    image_mime_type,
                     json.dumps(ocr_items, ensure_ascii=False),
                     json.dumps([f.model_dump() for f in fields], ensure_ascii=False),
                     image_width,
@@ -177,17 +187,20 @@ class SQLiteSessionStore:
 
         return self._with_db(_op)
 
-    def get_image(self, session_id: str) -> Optional[bytes]:
-        """Retrieve the original uploaded image by session_id."""
+    def get_image(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve the original uploaded image and MIME type by session_id."""
 
-        def _op(conn: sqlite3.Connection) -> Optional[bytes]:
+        def _op(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
             row = conn.execute(
-                "SELECT image_data FROM sessions WHERE session_id = ?",
+                "SELECT image_data, image_mime_type FROM sessions WHERE session_id = ?",
                 (session_id,),
             ).fetchone()
             if row is None or row["image_data"] is None:
                 return None
-            return bytes(row["image_data"])
+            return {
+                "image_data": bytes(row["image_data"]),
+                "mime_type": row["image_mime_type"] or "image/jpeg",
+            }
 
         return self._with_db(_op)
 

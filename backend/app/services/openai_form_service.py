@@ -39,6 +39,7 @@ Image size: {image_width}x{image_height} pixels.
 Rules:
 - Return ONLY fields that a user should fill in.
 - Exclude headers, printed instructions, office-use-only areas, signatures, stamps, tables, and already-filled values.
+- DONOT RETURN FIELDS WHICH DONOT REQUIRED TO BE FILLED BY THE USER, EVEN IF THEY LOOK LIKE FILLABLE BOXES. DOUVKE CHECK TO ENSURE SUCH FIELDS ARE NOT RETURNED.
 - For each field, return the bounding box of the writable area, not the label.
 - Keep the original top-to-bottom reading order.
 - Use short, user-friendly labels like "Full Name", "Date of Birth", "Address", "Phone Number".

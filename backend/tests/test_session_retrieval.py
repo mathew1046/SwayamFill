@@ -34,7 +34,7 @@ def test_get_session_image_returns_image(client, sample_image_bytes):
     # Retrieve the image
     img_resp = client.get(f"/session/{session_id}/image")
     assert img_resp.status_code == 200
-    assert img_resp.headers["content-type"] == "image/jpeg"
+    assert img_resp.headers["content-type"] == "image/png"
     assert len(img_resp.content) > 0
 
 

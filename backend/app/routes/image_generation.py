@@ -23,9 +23,10 @@ async def generate_form_image(req: GenerateFormImageRequest) -> GenerateFormImag
     if session_payload is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    image_bytes = store.get_image(req.session_id)
-    if image_bytes is None:
+    image_payload = store.get_image(req.session_id)
+    if image_payload is None:
         raise HTTPException(status_code=404, detail="Original form image not found")
+    image_bytes = image_payload["image_data"]
 
     field_lookup: Dict[str, Dict[str, object]] = {
         str(field["field_id"]): field for field in session_payload["fields"]

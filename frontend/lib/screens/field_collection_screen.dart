@@ -66,21 +66,33 @@ class _FieldCollectionScreenState extends State<FieldCollectionScreen> {
   Future<void> _bootstrap() async {
     await _tts.initialize();
     await _stt.initialize();
-    await _loadImage();
+
+    // Load form image in background while the user flow starts.
+    final imageLoadFuture = _loadImageInBackground();
+
     await _preloadSavedValues();
     _syncControllerWithCurrentField();
     await _speakCurrentPrompt();
     if (mounted) {
       setState(() => _isBusy = false);
     }
+
+    // Keep the future alive (errors are already handled internally).
+    await imageLoadFuture;
   }
 
-  Future<void> _loadImage() async {
-    final response = await http.get(
-      Uri.parse('${widget.backendUrl}/session/${widget.sessionId}/image'),
-    );
-    if (response.statusCode == 200) {
-      _formImage = response.bodyBytes;
+  Future<void> _loadImageInBackground() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${widget.backendUrl}/session/${widget.sessionId}/image'),
+      );
+      if (response.statusCode == 200 && mounted) {
+        setState(() {
+          _formImage = response.bodyBytes;
+        });
+      }
+    } catch (_) {
+      // Image preview is optional during collection flow.
     }
   }
 

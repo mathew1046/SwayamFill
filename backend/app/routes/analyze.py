@@ -65,11 +65,11 @@ def get_session(session_id: str):
 
 @router.get("/session/{session_id}/image")
 def get_session_image(session_id: str):
-    image_data = store.get_image(session_id)
-    if image_data is None:
+    payload = store.get_image(session_id)
+    if payload is None:
         raise HTTPException(status_code=404, detail="Image not found for this session")
 
-    return Response(content=image_data, media_type="image/jpeg")
+    return Response(content=payload["image_data"], media_type=payload["mime_type"])
 
 
 @router.get("/session/{session_id}/generated-image")
@@ -171,6 +171,7 @@ async def analyze_form(
         image_width=image_width,
         image_height=image_height,
         image_data=image_bytes,
+        image_mime_type=file.content_type or "image/jpeg",
     )
 
     session_fields = [

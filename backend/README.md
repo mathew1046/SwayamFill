@@ -11,7 +11,7 @@ FastAPI backend that:
 - Uses OpenAI vision (`gpt-5.4-mini`) to identify fillable fields directly from the uploaded form image
 - Creates a session per upload (stored in SQLite)
 - Saves user-entered field values for the current session
-- Generates a handwritten-style filled form image using OpenAI image generation
+- Generates a handwritten-style filled form image using OpenRouter image generation (`google/gemini-3-pro-image-preview`)
 
 ## Requirements
 - Python 3.10+
@@ -94,7 +94,7 @@ Returns:
 ```json
 {
   "session_id": "...",
-  "model": "gpt-image-2",
+  "model": "google/gemini-3-pro-image-preview",
   "output_format": "png",
   "mime_type": "image/png",
   "image_base64": "<base64>",
@@ -167,9 +167,18 @@ Hugging Face Spaces note: the filesystem may be ephemeral unless you enable pers
 
 Environment variables:
 
-- `OPENAI_API_KEY`: required for analysis and generation
+- `OPENAI_API_KEY`: required for form analysis
 - `OPENAI_FORM_ANALYSIS_MODEL`: optional, defaults to `gpt-5.4-mini`
-- `OPENAI_IMAGE_MODEL`: optional, defaults to `gpt-image-2`
+
+## OpenRouter Image Generation Configuration
+
+Environment variables:
+
+- `OPENROUTER_API_KEY`: required for form image generation
+- `OPENROUTER_IMAGE_MODEL`: optional, defaults to `google/gemini-3-pro-image-preview`
+- `OPENROUTER_BASE_URL`: optional, defaults to `https://openrouter.ai/api/v1`
+- `OPENROUTER_HTTP_REFERER`: optional, recommended for OpenRouter ranking/analytics
+- `OPENROUTER_APP_TITLE`: optional, defaults to `swayamfill`
 
 ## Deploy to Hugging Face Spaces (Docker)
 
