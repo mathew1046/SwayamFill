@@ -1,0 +1,35 @@
+name: frontend
+description: swayamfill - Speech to form filling application
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+  image_picker: ^1.0.4
+  http: ^1.2.0
+  http_parser: ^4.0.2
+  audioplayers: ^5.2.1
+  record: ^6.1.2
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1 # Add this
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png" # Path to your logo file
+  adaptive_icon_background: "#ffffff"  # Background color for Android
+  adaptive_icon_foreground: "assets/images/logo.png"
