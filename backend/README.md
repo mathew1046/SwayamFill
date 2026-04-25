@@ -8,10 +8,10 @@ app_port: 7860
 
 FastAPI backend that:
 - Accepts a scanned form image
-- Calls a remote PaddleOCR-VL service for OCR (configurable via `OCR_SERVICE_URL`)
-- Sends OCR results to Gemini to identify fillable fields
+- Uses OpenAI vision (`gpt-5.4-mini`) to identify fillable fields directly from the uploaded form image
 - Creates a session per upload (stored in SQLite)
-- Provides a chat endpoint to guide form filling
+- Saves user-entered field values for the current session
+- Generates a handwritten-style filled form image using OpenAI image generation
 
 ## Requirements
 - Python 3.10+
@@ -47,8 +47,8 @@ Returns:
 ```json
 {
   "session_id": "...",
-  "ocr_items": [{ "text": "Name", "bbox": [0,0,0,0], "score": 0.99 }],
-  "fields": [{ "label": "Name", "text": "", "bbox": [0,0,0,0] }]
+  "ocr_items": [],
+  "fields": [{ "label": "Name", "bbox": [0,0,0,0] }]
 }
 ```
 
@@ -63,6 +63,44 @@ Returns:
 {
   "reply_text": "Please fill Name in the highlighted box.",
   "action": { "type": "DRAW_GUIDE", "text": "RAVI KUMAR", "bbox": [0,0,0,0] }
+}
+```
+
+### POST /generate-form-image
+Body:
+```json
+{
+  "session_id": "...",
+  "field_values": {
+    "name_0": "RAVI KUMAR"
+  },
+  "output_format": "png",
+  "quality": "medium",
+  "background": "opaque"
+}
+```
+
+### PUT /session/{session_id}/field-values
+Body:
+```json
+{
+  "field_values": {
+    "name_0": "RAVI KUMAR"
+  }
+}
+```
+
+Returns:
+```json
+{
+  "session_id": "...",
+  "model": "gpt-image-2",
+  "output_format": "png",
+  "mime_type": "image/png",
+  "image_base64": "<base64>",
+  "fields_used": [
+    { "field_id": "name_0", "label": "Name", "value": "RAVI KUMAR" }
+  ]
 }
 ```
 
@@ -92,27 +130,26 @@ curl -sS -X POST "$BASE_URL/analyze-form" \
 #   -F "file=@../random/form1.jpg" | cat
 ```
 
-Grab the `session_id` from the upload response and chat:
+Grab the `session_id` from the upload response and save field values:
 
 ```bash
 SESSION_ID="<paste session_id here>"
 
-curl -sS -X POST "$BASE_URL/chat" \
+curl -sS -X PUT "$BASE_URL/session/$SESSION_ID/field-values" \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"'"$SESSION_ID"'","user_message":"RAVI KUMAR"}' | cat
+  -d '{"field_values":{"name_0":"RAVI KUMAR"}}' | cat
 ```
 
 ## Notes
 - Sessions are stored in SQLite (single file). Restarting the server keeps sessions as long as the DB file remains.
-- PaddleOCR-VL may download model weights on first run.
-- Field detection is a heuristic (hackathon MVP) and will improve later.
+- Field detection and image generation both require `OPENAI_API_KEY`.
 
 ## Database
 
 This backend uses a small SQLite database to store:
 
 - `session_id` created by `POST /analyze-form`
-- OCR output (`ocr_items`) and inferred `fields`
+- inferred `fields`
 - Chat messages and the current field index
 
 How `/chat` retrieves OCR:
@@ -126,15 +163,13 @@ Configuration:
 
 Hugging Face Spaces note: the filesystem may be ephemeral unless you enable persistent storage. If you need sessions to survive restarts, store the DB on a persistent volume.
 
-## OCR Configuration
-
-This backend calls a remote PaddleOCR-VL service.
+## OpenAI Configuration
 
 Environment variables:
 
-- `OCR_SERVICE_URL` (or `PADDLE_OCR_SERVICE_URL`): base URL of the OCR service. Required.
-
-The backend never exposes this URL in responses or logs; configure it through environment variables.
+- `OPENAI_API_KEY`: required for analysis and generation
+- `OPENAI_FORM_ANALYSIS_MODEL`: optional, defaults to `gpt-5.4-mini`
+- `OPENAI_IMAGE_MODEL`: optional, defaults to `gpt-image-2`
 
 ## Deploy to Hugging Face Spaces (Docker)
 

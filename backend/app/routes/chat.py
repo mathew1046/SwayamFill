@@ -222,7 +222,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
         if not session_service.has_more_fields(req.session_id):
             done_text = await _translate_if_needed("Great job! The form is complete.", user_lang, sarvam)
             return ChatResponse(
-                assistant_t,
+                assistant_text=done_text,
+                action=None,
                 is_complete=True
             )
         

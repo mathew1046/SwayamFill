@@ -10,7 +10,7 @@ def test_chat_unknown_session_404(client):
     assert resp.status_code == 404
 
 
-def test_chat_flow_voice_field(client, sample_image_bytes, mock_remote_ocr):
+def test_chat_flow_voice_field(client, sample_image_bytes):
     """Test complete flow: create session, collect value, confirm, complete."""
     
     # Step 1: Create session
@@ -45,7 +45,7 @@ def test_chat_flow_voice_field(client, sample_image_bytes, mock_remote_ocr):
     # Should either move to next field or complete
 
 
-def test_chat_confirmation_words(client, sample_image_bytes, mock_remote_ocr):
+def test_chat_confirmation_words(client, sample_image_bytes):
     """Test that various confirmation words are recognized."""
     
     # Create session
@@ -66,7 +66,7 @@ def test_chat_confirmation_words(client, sample_image_bytes, mock_remote_ocr):
         # Should process confirmation
 
 
-def test_chat_numeric_normalization(client, sample_image_bytes, mock_remote_ocr):
+def test_chat_numeric_normalization(client, sample_image_bytes):
     """Test that numeric fields extract only digits."""
     
     # This test would need a mock field with write_language="numeric"

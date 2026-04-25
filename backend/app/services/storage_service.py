@@ -37,6 +37,8 @@ def _init_db(conn: sqlite3.Connection) -> None:
             created_at REAL NOT NULL,
             filename TEXT NOT NULL,
             image_data BLOB,
+            generated_image_data BLOB,
+            generated_image_mime_type TEXT,
             ocr_items_json TEXT NOT NULL,
             fields_json TEXT NOT NULL,
             current_field_index INTEGER NOT NULL DEFAULT 0,
@@ -62,6 +64,18 @@ def _init_db(conn: sqlite3.Connection) -> None:
         conn.execute("SELECT phase FROM sessions LIMIT 1")
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE sessions ADD COLUMN phase TEXT NOT NULL DEFAULT 'COLLECT_DATA'")
+        conn.commit()
+
+    try:
+        conn.execute("SELECT generated_image_data FROM sessions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE sessions ADD COLUMN generated_image_data BLOB")
+        conn.commit()
+
+    try:
+        conn.execute("SELECT generated_image_mime_type FROM sessions LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE sessions ADD COLUMN generated_image_mime_type TEXT")
         conn.commit()
     
     conn.execute(
@@ -174,6 +188,32 @@ class SQLiteSessionStore:
             if row is None or row["image_data"] is None:
                 return None
             return bytes(row["image_data"])
+
+        return self._with_db(_op)
+
+    def set_generated_image(self, session_id: str, image_data: bytes, mime_type: str) -> None:
+        def _op(conn: sqlite3.Connection) -> None:
+            conn.execute(
+                "UPDATE sessions SET generated_image_data = ?, generated_image_mime_type = ? WHERE session_id = ?",
+                (image_data, mime_type, session_id),
+            )
+            conn.commit()
+
+        self._with_db(_op)
+
+    def get_generated_image(self, session_id: str) -> Optional[Dict[str, Any]]:
+        def _op(conn: sqlite3.Connection) -> Optional[Dict[str, Any]]:
+            row = conn.execute(
+                "SELECT generated_image_data, generated_image_mime_type FROM sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if row is None or row["generated_image_data"] is None:
+                return None
+
+            return {
+                "image_data": bytes(row["generated_image_data"]),
+                "mime_type": row["generated_image_mime_type"] or "image/png",
+            }
 
         return self._with_db(_op)
 

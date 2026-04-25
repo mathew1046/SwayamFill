@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import '../config/backend_config.dart';
+import '../models/form_models.dart';
 import '../main.dart';
-import 'form_filling_screen.dart';
+import 'field_collection_screen.dart';
 
 String _inferMimeFromPath(String path) {
   final lower = path.toLowerCase();
@@ -15,9 +17,6 @@ String _inferMimeFromPath(String path) {
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
   return 'image/jpeg';
 }
-
-const String backendBaseUrl = 'https://swayamfill.onrender.com';
-// const String backendBaseUrl = 'http://localhost:8000';
 
 /// UploadScreenWithLanguage - handles image upload with selected language
 class UploadScreenWithLanguage extends StatelessWidget {
@@ -110,26 +109,27 @@ class UploadScreenWithLanguage extends StatelessWidget {
       final resp = await http.Response.fromStream(streamed);
 
       if (resp.statusCode == 200) {
-        final data = json.decode(resp.body) as Map<String, dynamic>;
-        final sessionId = data['session_id'] as String?;
-        final imageWidth = (data['image_width'] as num?)?.toInt();
-        final imageHeight = (data['image_height'] as num?)?.toInt();
+        final analysis = AnalyzeFormResponse.fromJson(
+          json.decode(resp.body) as Map<String, dynamic>,
+        );
 
-        if (sessionId != null && imageWidth != null && imageHeight != null && context.mounted) {
+        if (analysis.fields.isNotEmpty && context.mounted) {
           // Replace current route with form filling screen
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => FormFillingScreen(
-                sessionId: sessionId,
+              builder: (context) => FieldCollectionScreen(
+                sessionId: analysis.sessionId,
                 backendUrl: backendBaseUrl,
-                imageWidth: imageWidth,
-                imageHeight: imageHeight,
+                selectedLanguage: selectedLanguage,
+                imageWidth: analysis.imageWidth,
+                imageHeight: analysis.imageHeight,
+                fields: analysis.fields,
               ),
             ),
           );
         } else {
-          debugPrint('Invalid analyze-form response: $data');
+          debugPrint('Invalid analyze-form response: ${resp.body}');
           if (context.mounted) {
             _showError(context, 'Invalid analyze response');
             Navigator.pop(context);
@@ -205,7 +205,7 @@ class UploadScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'The easiest way to fill complex forms.\nJust upload and speak.',
+                    'Upload a form, answer each field, and get a handwritten filled copy ready to print.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Colors.grey.shade600,
@@ -404,25 +404,26 @@ class UploadScreen extends StatelessWidget {
         final resp = await http.Response.fromStream(streamed);
 
         if (resp.statusCode == 200) {
-          final data = json.decode(resp.body) as Map<String, dynamic>;
-          final sessionId = data['session_id'] as String?;
-          final imageWidth = (data['image_width'] as num?)?.toInt();
-          final imageHeight = (data['image_height'] as num?)?.toInt();
+          final analysis = AnalyzeFormResponse.fromJson(
+            json.decode(resp.body) as Map<String, dynamic>,
+          );
 
-          if (sessionId != null && imageWidth != null && imageHeight != null) {
+          if (analysis.fields.isNotEmpty) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => FormFillingScreen(
-                  sessionId: sessionId,
+                builder: (context) => FieldCollectionScreen(
+                  sessionId: analysis.sessionId,
                   backendUrl: backendBaseUrl,
-                  imageWidth: imageWidth,
-                  imageHeight: imageHeight,
+                  selectedLanguage: 'en-IN',
+                  imageWidth: analysis.imageWidth,
+                  imageHeight: analysis.imageHeight,
+                  fields: analysis.fields,
                 ),
               ),
             );
           } else {
-            debugPrint('Invalid analyze-form response: $data');
+            debugPrint('Invalid analyze-form response: ${resp.body}');
             _showError(context, 'Invalid analyze response');
           }
         } else {
